@@ -1,27 +1,26 @@
-var gulp = require('gulp');
-var connect = require('gulp-connect');
-var fileinclude = require('gulp-file-include');
-var sass = require('gulp-sass');
-var watch = require('gulp-watch');
-var prettify = require('gulp-jsbeautifier');
-var useref = require('gulp-useref');
-var rev = require('gulp-rev');
-var revReplace = require('gulp-rev-replace');
-var gulpif = require('gulp-if');
-var uglify = require('gulp-uglify');
-var cleanCSS = require('gulp-clean-css');
-var imagemin = require('gulp-imagemin');
-var del = require('del');
-var runSequence = require('run-sequence');
+const gulp = require('gulp');
+const connect = require('gulp-connect');
+const fileinclude = require('gulp-file-include');
+const sass = require('gulp-sass');
+const watch = require('gulp-watch');
+const prettify = require('gulp-jsbeautifier');
+const useref = require('gulp-useref');
+const rev = require('gulp-rev');
+const revReplace = require('gulp-rev-replace');
+const gulpif = require('gulp-if');
+const uglify = require('gulp-uglify');
+const cleanCSS = require('gulp-clean-css');
+const imagemin = require('gulp-imagemin');
+const del = require('del');
 var htmlhint = require("gulp-htmlhint");
 
 gulp.sources = {
-  src:  './src',
+  src: './src',
   dist: './html'
 };
 
 // Start server dev
-gulp.task('connect:dev', () => {
+gulp.task('connect:dev', (done) => {
   connect.server({
     root: [gulp.sources.src, '.tmp', './'],
     livereload: true,
@@ -29,10 +28,11 @@ gulp.task('connect:dev', () => {
     host: '0.0.0.0',
     fallback: gulp.sources.src + '/index.html'
   });
+  done();
 });
 
 // Start server product
-gulp.task('connect:prod', () => {
+gulp.task('connect:prod', (done) => {
   connect.server({
     root: [gulp.sources.dist],
     livereload: true,
@@ -40,18 +40,20 @@ gulp.task('connect:prod', () => {
     host: '0.0.0.0',
     fallback: gulp.sources.dist + '/index.html'
   });
+  done();
 });
 
 // Watch
-gulp.task('stream', () => {
-  gulp.watch(gulp.sources.src + '/views/**/*.html', ['fileinclude']);
-  gulp.watch(gulp.sources.src + '/styles/**/*.scss', ['sass']);
-  gulp.watch(gulp.sources.src + '/scripts/**/*.js', ['script']);
+gulp.task('stream', (done) => {
+  gulp.watch(gulp.sources.src + '/views/**/*.html', gulp.series('fileinclude'));
+  gulp.watch(gulp.sources.src + '/styles/**/*.scss', gulp.series('sass'));
+  gulp.watch(gulp.sources.src + '/scripts/**/*.js', gulp.series('script'));
   watch('**/*.css').pipe(connect.reload());
+  done();
 });
 
 // Include HTML
-gulp.task('fileinclude', () => {
+gulp.task('fileinclude', (done) => {
   return gulp.src([gulp.sources.src + '/views/pages/*.html'])
     .pipe(fileinclude({
       prefix: '@@',
@@ -62,34 +64,35 @@ gulp.task('fileinclude', () => {
 });
 
 // Minify CSS, JS
-gulp.task('minify', () => {
+gulp.task('minify', (done) => {
   return gulp.src(gulp.sources.src + '/*.html')
     .pipe(useref())
     .pipe(gulpif('*.js', uglify({
       compress: false
     })))
     .pipe(gulpif('*.css', cleanCSS({
-      specialComments : 0
+      specialComments: 0
     })))
     .pipe(gulp.dest(gulp.sources.dist));
 });
 
 // Sass
-gulp.task('sass', ['htmlhint'], () => {
+gulp.task('sass', () => {
   return gulp.src(gulp.sources.src + '/styles/**/*.scss')
     .pipe(sass.sync().on('error', sass.logError))
     .pipe(gulp.dest('.tmp/styles'))
     .pipe(connect.reload());
 });
 
+
 // Javascript
-gulp.task('script', () => {
+gulp.task('script', (done) => {
   return gulp.src(gulp.sources.src + '/scripts/**/*.js')
     .pipe(connect.reload());
 });
 
 // Minify images
-gulp.task('imagemin', () => {
+gulp.task('imagemin', (done) => {
   return gulp.src(gulp.sources.src + '/images/**/*')
     .pipe(imagemin({
       optimizationLevel: 5,
@@ -101,78 +104,47 @@ gulp.task('imagemin', () => {
 });
 
 // Copy fonts
-gulp.task('htmlhint', ['fileinclude'], () => {
+gulp.task('htmlhint', gulp.series('fileinclude', (done) => {
   return gulp.src(gulp.sources.src + '/*.html')
     .pipe(htmlhint())
-    .pipe(htmlhint.failReporter())
-});
+    .pipe(htmlhint.failReporter());
+}));
 
 // Copy fonts
-gulp.task('copy:fonts', () => {
+gulp.task('copy:fonts', (done) => {
   return gulp.src(gulp.sources.src + '/fonts/**/*')
-    .pipe(gulp.dest(gulp.sources.dist + '/fonts'))
+    .pipe(gulp.dest(gulp.sources.dist + '/fonts'));
 });
 
 // HTML beautify
-gulp.task('prettify', ['copy:fonts'], () => {
+gulp.task('prettify', gulp.series('copy:fonts', (done) => {
   return gulp.src([gulp.sources.dist + '/*.html'])
     .pipe(prettify({
       indent_char: ' ',
       indent_size: 2
     }))
     .pipe(gulp.dest(gulp.sources.dist));
-});
-
-gulp.task('revision', function () {
-  return gulp.src([gulp.sources.dist + '/styles/*.css', gulp.sources.dist + '/scripts/*.js'], {base: gulp.sources.dist})
-    .pipe(rev())
-    .pipe(gulp.dest(gulp.sources.dist))
-    .pipe(rev.manifest())
-    .pipe(gulp.dest('.tmp'));
-});
-
-gulp.task('revreplace', ['revision'], function() {
-  var manifest = gulp.src('.tmp/rev-manifest.json');
-
-  return gulp.src(gulp.sources.dist + '/*.html')
-    .pipe(revReplace({manifest: manifest}))
-    .pipe(gulp.dest(gulp.sources.dist));
-});
+}));
 
 // Remove dist, tmp
-gulp.task('clean', () => {
-  return del(['.tmp', gulp.sources.dist])
-});
-
-// Remove files
-gulp.task('cleanFiles', ['revreplace'], () => {
-  return del([
-    gulp.sources.dist + '/styles/style.min.css',
-    gulp.sources.dist + '/styles/vendor.min.css',
-    gulp.sources.dist + '/scripts/script.min.js',
-    gulp.sources.dist + '/scripts/vendor.min.js'
-  ]);
+gulp.task('clean', (done) => {
+  return del(['.tmp', gulp.sources.dist]);
 });
 
 // Build source
-gulp.task('build', () => {
-  runSequence('clean', 'fileinclude', 'htmlhint', 'sass', 'minify', 'imagemin', 'copy:fonts', 'prettify', 'cleanFiles', (e) => {
-    if (!e) {
-      console.log('Success!');
-    }
-  });
-});
+gulp.task('build', gulp.series('clean', 'fileinclude', 'htmlhint', 'sass', 'minify', 'imagemin', 'copy:fonts', 'prettify', (done) => {
+  console.log('Success!');
+  done();
+}));
 
 // Start development server
-gulp.task('run:dev', () => {
-  runSequence('clean', 'connect:dev', 'fileinclude', 'sass', 'stream', () => {
-    console.log('Development version is running...');
-  });
-});
+gulp.task('run:dev', gulp.series('clean', 'connect:dev', 'fileinclude', 'sass', 'stream', (done) => {
+  console.log('Development version is running...');
+  done();
+}));
 
 // Start product server
-gulp.task('run:prod', () => {
-  runSequence('build', 'connect:prod', () => {
-    console.log('Production version is running...');
-  });
-});
+gulp.task('run:prod', gulp.series('build', 'connect:prod', (done) => {
+  console.log('Production version is running...');
+  done();
+}));
